@@ -65,40 +65,56 @@ def extract_youtube_id(url):
 st.title("🎬 비디오 스케줄러")
 
 # 현재 재생 중인 비디오 표시
-current_video = get_current_video(st.session_state)
-if current_video:
-    st.subheader("🎬 현재 재생 중인 비디오")
-    
-    # 비디오 제목
-    st.info(f"**{current_video['title']} url: {current_video['file_path']}**")
-    
-    # 비디오 플레이어 (전체 너비)
-    if 'youtube.com' in current_video['file_path'] or 'youtu.be' in current_video['file_path']:
-        video_id = extract_youtube_id(current_video['file_path'])
-        if video_id:
-            embed_url = f"https://www.youtube.com/embed/{video_id}?autoplay=1"
-            st.markdown(f"""
-            <iframe width="100%" height="450" 
-                    src="{embed_url}" 
-                    frameborder="0" 
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
-                    allowfullscreen>
-            </iframe>
-            """, unsafe_allow_html=True)
+try:
+    current_video = get_current_video(st.session_state)
+except Exception as e:
+    st.error(f"비디오 정보를 불러오는 중 오류가 발생했습니다: {e}")
+    current_video = None
+
+if current_video and isinstance(current_video, dict):
+    try:
+        st.subheader("🎬 현재 재생 중인 비디오")
+        
+        # 비디오 제목 안전하게 표시
+        title = current_video.get('title', '제목 없음')
+        file_path = current_video.get('file_path', '')
+        
+        st.info(f"**{title} url: {file_path}**")
+        
+        # 비디오 플레이어 (전체 너비)
+        if file_path and ('youtube.com' in file_path or 'youtu.be' in file_path):
+            video_id = extract_youtube_id(file_path)
+            if video_id:
+                embed_url = f"https://www.youtube.com/embed/{video_id}?autoplay=1"
+                st.markdown(f"""
+                <iframe width="100%" height="450" 
+                        src="{embed_url}" 
+                        frameborder="0" 
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                        allowfullscreen>
+                </iframe>
+                """, unsafe_allow_html=True)
+            else:
+                st.video(file_path, autoplay=True)
+        elif file_path:
+            # 로컬 파일 또는 다른 URL
+            st.video(file_path, autoplay=True)
         else:
-            st.video(current_video['file_path'], autoplay=True)
-    else:
-        # 로컬 파일 또는 다른 URL
-        st.video(current_video['file_path'], autoplay=True)
-    
-    # 하단에 재생 정보와 중지 버튼
-    info_col, button_col = st.columns([3, 1])
-    with info_col:
-        st.caption(f"재생 시간: {current_video.get('timestamp', 'N/A')}")
-    with button_col:
-        if st.button("⏹️ 재생 중지", type="secondary"):
-            clear_current_video(st.session_state)
-            st.rerun()
+            st.warning("⚠️ 잘못된 비디오 경로입니다.")
+        
+        # 하단에 재생 정보와 중지 버튼
+        info_col, button_col = st.columns([3, 1])
+        with info_col:
+            timestamp = current_video.get('timestamp', 'N/A')
+            st.caption(f"재생 시간: {timestamp}")
+        with button_col:
+            if st.button("⏹️ 재생 중지", type="secondary"):
+                clear_current_video(st.session_state)
+                st.rerun()
+    except Exception as e:
+        st.error(f"비디오 재생 중 오류가 발생했습니다: {e}")
+        # 오류 발생 시 현재 비디오 정보 정리
+        clear_current_video(st.session_state)
 
 st.markdown("---")
 
@@ -267,8 +283,8 @@ with tab1:
                                     # Convert local time to UTC
                                     #utc_time = local_to_utc(schedule_time_input, st.session_state.timezone_offset)
                                     utc_time = schedule_time_input
-                                    add_schedule(utc_time, video_url, "youtube", schedule_title)
-                                    st.success(f"✅ '{schedule_title}' 스케줄이 서울 시간 {schedule_time_input} (UTC {utc_time})에 추가되었습니다!")
+                                    add_schedule(utc_time, video_url, "youtube", schedule_title, video.get('category', 'Music'))
+                                    st.success(f"✅ '{schedule_title}' 스케줄이 서울 시간 {schedule_time_input} (UTC {utc_time})에 추가되었습니다! (카테고리: {video.get('category', 'Music')})")
                                     st.session_state.selected_video = None
                                     time_module.sleep(1)
                                     st.rerun()
@@ -286,6 +302,19 @@ with tab1:
         
 with tab2:
     st.header("새 스케줄 추가")
+    
+    # 카테고리 선택 추가
+    st.markdown("**🏷️ 카테고리 선택**")
+    manual_category_options = ["Music", "English", "History", "Travel", "Daily_Life"]
+    manual_selected_category = st.radio(
+        "스케줄 카테고리:",
+        options=manual_category_options,
+        horizontal=True,
+        key="manual_category_radio",
+        label_visibility="collapsed"
+    )
+    
+    st.markdown("---")
     
     col1, col2 = st.columns(2)
     
@@ -317,8 +346,8 @@ with tab2:
                 st.warning("⚠️ 파일이 존재하지 않습니다. 경로를 확인해주세요.")
             
             if valid:
-                add_schedule(time_str, file_path, f_type, title)
-                st.success(f"✅ '{title}' 스케줄이 {time_str}에 추가되었습니다!")
+                add_schedule(time_str, file_path, f_type, title, manual_selected_category)
+                st.success(f"✅ '{title}' 스케줄이 {time_str}에 추가되었습니다! (카테고리: {manual_selected_category})")
                 st.rerun()
         else:
             st.error("⚠️ 제목과 파일 경로를 모두 입력해주세요.")
@@ -339,7 +368,7 @@ with tab3:
                 if st.session_state.editing_id == row['id']:
                     st.subheader(f"✏️ {row['title']} 편집")
                     
-                    edit_col1, edit_col2 = st.columns(2)
+                    edit_col1, edit_col2, edit_col3 = st.columns(3)
                     
                     with edit_col1:
                         edit_title = st.text_input("제목", value=row['title'], key=f"edit_title_{row['id']}")
@@ -351,6 +380,16 @@ with tab3:
                                                   index=0 if row['file_type'] == 'youtube' else 1,
                                                   key=f"edit_type_{row['id']}", horizontal=True)
                         edit_file_path = st.text_input("파일 경로/URL", value=row['file_path'], key=f"edit_path_{row['id']}")
+                    
+                    with edit_col3:
+                        edit_category_options = ["Music", "English", "History", "Travel", "Daily_Life"]
+                        current_category = row.get('category', 'Music')
+                        edit_category = st.selectbox(
+                            "카테고리",
+                            options=edit_category_options,
+                            index=edit_category_options.index(current_category) if current_category in edit_category_options else 0,
+                            key=f"edit_category_{row['id']}"
+                        )
                     
                     btn_col1, btn_col2 = st.columns(2)
                     with btn_col1:
@@ -366,9 +405,9 @@ with tab3:
                                 st.warning("⚠️ 파일이 존재하지 않습니다. 경로를 확인해주세요.")
                             
                             if valid:
-                                update_schedule(row['id'], edit_time, edit_file_path, f_type, edit_title)
+                                update_schedule(row['id'], edit_time, edit_file_path, f_type, edit_title, edit_category)
                                 st.session_state.editing_id = None
-                                st.success(f"✅ '{edit_title}' 스케줄이 수정되었습니다!")
+                                st.success(f"✅ '{edit_title}' 스케줄이 수정되었습니다! (카테고리: {edit_category})")
                                 st.rerun()
                     
                     with btn_col2:
@@ -378,49 +417,69 @@ with tab3:
                 
                 # 일반 표시 모드
                 else:
-                    col1, col2, col3, col4, col5, col6, col7 = st.columns([3, 2, 2, 1, 1, 1, 1])
+                    col1, col2 = st.columns([1, 3])
                     
                     with col1:
-                        status = "🟢" if row['is_active'] else "🔴"
-                        st.write(f"{status} **{row['title']}**")
+                        # 썸네일 표시 (YouTube인 경우)
+                        if row['file_type'] == 'youtube':
+                            video_id = extract_youtube_id(row['file_path'])
+                            if video_id:
+                                thumbnail_url = f'https://i.ytimg.com/vi/{video_id}/hqdefault.jpg'
+                                st.image(thumbnail_url, width='stretch')
+                            else:
+                                st.markdown("📺<br>YouTube", unsafe_allow_html=True)
+                        elif row['file_type'] == 'local':
+                            st.markdown("📁<br>로컬 파일", unsafe_allow_html=True)
+                        else:
+                            st.markdown("🌐<br>HTML", unsafe_allow_html=True)
                     
                     with col2:
-                        st.write(f"🕐 {row['schedule_time']}")
-                    
-                    with col3:
-                        file_type_display = "📺 YouTube" if row['file_type'] == 'youtube' else "📁 로컬"
-                        st.write(file_type_display)
-                    
-                    with col4:
-                        if st.button("🔄" if row['is_active'] else "▶️", key=f"toggle_{row['id']}"):
-                            new_status = 0 if row['is_active'] else 1
-                            toggle_schedule(row['id'], new_status)
-                            st.rerun()
-                    
-                    with col5:
-                        if st.button("▶️", key=f"schedule_play_{row['id']}", help="지금 재생"):
-                            # 즉시 재생
-                            if row['file_type'] == 'youtube':
-                                from database.schedule_db import get_youtube_embed_url
-                                embed_url = get_youtube_embed_url(row['file_path'])
-                                set_current_video(embed_url, row['title'], st.session_state)
-                            else:
-                                set_current_video(row['file_path'], row['title'], st.session_state)
-                            st.rerun()
-                    
-                    with col6:
-                        if st.button("✏️", key=f"edit_{row['id']}"):
-                            st.session_state.editing_id = row['id']
-                            st.rerun()
-                    
-                    with col7:
-                        if st.button("🗑️", key=f"delete_{row['id']}"):
-                            delete_schedule(row['id'])
-                            st.rerun()
-                    
-                    with st.expander("상세 정보"):
-                        st.text(f"파일 경로: {row['file_path']}")
-                        st.text(f"등록일: {row['created_at']}")
+                        # 제목과 상태
+                        status = "🟢" if row['is_active'] else "🔴"
+                        st.markdown(f"**{status} {row['title']}**")
+                        
+                        # 스케줄 정보
+                        st.caption(f"🕐 예약 시간: {row['schedule_time']}")
+                        
+                        # 파일 타입과 카테고리
+                        file_type_display = "📺 YouTube" if row['file_type'] == 'youtube' else "📁 로컬 파일" if row['file_type'] == 'local' else "🌐 HTML"
+                        category_info = f" | 🏷️ {row.get('category', 'Music')}" if row.get('category') else ""
+                        st.caption(f"{file_type_display}{category_info}")
+                        
+                        # 생성일
+                        # st.caption(f"📅 등록일: {row.get('created_at', 'N/A')}")
+                        
+                        # 파일 경로/URL
+                        st.text(f"경로: {row['file_path']}")
+                        
+                        # 버튼들
+                        btn_col1, btn_col2, btn_col3, btn_col4 = st.columns(4)
+                        with btn_col1:
+                            if st.button("🔄" if row['is_active'] else "▶️", key=f"toggle_{row['id']}", help="활성화/비활성화"):
+                                new_status = 0 if row['is_active'] else 1
+                                toggle_schedule(row['id'], new_status)
+                                st.rerun()
+                        
+                        with btn_col2:
+                            if st.button("▶️", key=f"schedule_play_{row['id']}", help="지금 재생", type="primary"):
+                                # 즉시 재생
+                                if row['file_type'] == 'youtube':
+                                    from database.schedule_db import get_youtube_embed_url
+                                    embed_url = get_youtube_embed_url(row['file_path'])
+                                    set_current_video(embed_url, row['title'], st.session_state)
+                                else:
+                                    set_current_video(row['file_path'], row['title'], st.session_state)
+                                st.rerun()
+                        
+                        with btn_col3:
+                            if st.button("✏️", key=f"edit_{row['id']}", help="편집"):
+                                st.session_state.editing_id = row['id']
+                                st.rerun()
+                        
+                        with btn_col4:
+                            if st.button("🗑️", key=f"delete_{row['id']}", help="삭제"):
+                                delete_schedule(row['id'])
+                                st.rerun()
                 
                 st.markdown("---")
     else:

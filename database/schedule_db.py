@@ -19,6 +19,7 @@ def init_db():
             file_path TEXT NOT NULL,
             file_type TEXT NOT NULL,
             title TEXT,
+            category TEXT DEFAULT 'Music',
             is_active INTEGER DEFAULT 1,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             last_played TEXT DEFAULT NULL
@@ -32,16 +33,23 @@ def init_db():
     except:
         pass
     
+    # 기존 테이블에 category 컬럼 추가 (이미 있으면 무시)
+    try:
+        c.execute('ALTER TABLE schedules ADD COLUMN category TEXT DEFAULT "Music"')
+        conn.commit()
+    except:
+        pass
+    
     conn.close()
 
 # 스케줄 추가
-def add_schedule(schedule_time, file_path, file_type, title):
+def add_schedule(schedule_time, file_path, file_type, title, category="Music"):
     conn = sqlite3.connect('schedule.db')
     c = conn.cursor()
     c.execute('''
-        INSERT INTO schedules (schedule_time, file_path, file_type, title)
-        VALUES (?, ?, ?, ?)
-    ''', (schedule_time, file_path, file_type, title))
+        INSERT INTO schedules (schedule_time, file_path, file_type, title, category)
+        VALUES (?, ?, ?, ?, ?)
+    ''', (schedule_time, file_path, file_type, title, category))
     conn.commit()
     conn.close()
 
@@ -61,14 +69,14 @@ def delete_schedule(schedule_id):
     conn.close()
 
 # 스케줄 수정
-def update_schedule(schedule_id, schedule_time, file_path, file_type, title):
+def update_schedule(schedule_id, schedule_time, file_path, file_type, title, category="Music"):
     conn = sqlite3.connect('schedule.db')
     c = conn.cursor()
     c.execute('''
         UPDATE schedules 
-        SET schedule_time = ?, file_path = ?, file_type = ?, title = ?
+        SET schedule_time = ?, file_path = ?, file_type = ?, title = ?, category = ?
         WHERE id = ?
-    ''', (schedule_time, file_path, file_type, title, schedule_id))
+    ''', (schedule_time, file_path, file_type, title, category, schedule_id))
     conn.commit()
     conn.close()
 
@@ -183,8 +191,8 @@ def check_schedule_once(session_state=None):
         print(f"[DEBUG] Found {len(schedules)} matching schedules")
         
         for schedule in schedules:
-            schedule_id, _, file_path, file_type, title, _, _, last_played = schedule
-            print(f"[DEBUG] Processing schedule: {title}, last_played={last_played}")
+            schedule_id, _, file_path, file_type, title, category, _, _, last_played = schedule
+            print(f"[DEBUG] Processing schedule: {title} (category: {category}), last_played={last_played}")
             
             # Check if not already played this minute
             if last_played != current_time:
@@ -237,7 +245,7 @@ def check_schedule():
             schedules = c.fetchall()
             
             for schedule in schedules:
-                schedule_id, _, file_path, file_type, title, _, _, last_played = schedule
+                schedule_id, _, file_path, file_type, title, category, _, _, last_played = schedule
                 
                 # 같은 시간대에 이미 재생되었는지 확인 (last_played와 current_time 비교)
                 if last_played != current_time:
