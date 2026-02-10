@@ -52,6 +52,8 @@ if 'selected_video' not in st.session_state:
     st.session_state.selected_video = None
 if 'search_history' not in st.session_state:
     st.session_state.search_history = []
+if 'selected_category' not in st.session_state:
+    st.session_state.selected_category = "Music"
 
 # Helper function to extract YouTube video ID
 def extract_youtube_id(url):
@@ -76,7 +78,7 @@ if current_video:
         if video_id:
             embed_url = f"https://www.youtube.com/embed/{video_id}?autoplay=1"
             st.markdown(f"""
-            <iframe width="100%" height="315" 
+            <iframe width="100%" height="450" 
                     src="{embed_url}" 
                     frameborder="0" 
                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
@@ -84,10 +86,10 @@ if current_video:
             </iframe>
             """, unsafe_allow_html=True)
         else:
-            st.video(current_video['file_path'])
+            st.video(current_video['file_path'], autoplay=True)
     else:
         # 로컬 파일 또는 다른 URL
-        st.video(current_video['file_path'])
+        st.video(current_video['file_path'], autoplay=True)
     
     # 하단에 재생 정보와 중지 버튼
     info_col, button_col = st.columns([3, 1])
@@ -106,9 +108,29 @@ tab1, tab2, tab3 = st.tabs(["🔍 YouTube 검색", "📅 스케줄 추가", "�
 with tab1:
     st.header("YouTube 비디오 검색")
     
+    # 카테고리 선택
+    st.markdown("**🏷️ 카테고리 선택**")
+    category_options = ["Music", "Health", "Business", "English", "History", "Travel", "Daily_Life"]
+    selected_category = st.radio(
+        "검색 카테고리를 선택하세요:",
+        options=category_options,
+        index=category_options.index(st.session_state.selected_category) if st.session_state.selected_category in category_options else 0,
+        horizontal=True,
+        key="category_radio",
+        label_visibility="collapsed"
+    )
+    
+    # 선택된 카테고리를 세션 상태에 저장
+    st.session_state.selected_category = selected_category
+    
+    st.markdown("---")
+    
     # 검색 입력
     search_col1, search_col2 = st.columns([4, 1])
     with search_col1:
+        # 검색 입력 라벨을 일관된 크기로 표시
+        st.markdown("**🔍 검색어를 입력하세요**")
+        
         # 검색 기록을 help 텍스트로 표시
         help_text = "검색어를 입력하세요"
         if st.session_state.search_history:
@@ -116,10 +138,11 @@ with tab1:
             help_text = f"최근 검색: {recent_searches}"
         
         search_query = st.text_input(
-            "검색어를 입력하세요", 
+            "검색어 입력", 
             placeholder="예: 아침에 듣는 앙상블 음악", 
             help=help_text,
-            key="youtube_search"
+            key="youtube_search",
+            label_visibility="collapsed"
         )
         
         # 검색 기록이 있으면 작은 캡션으로 표시
@@ -143,8 +166,12 @@ with tab1:
         
         with st.spinner("검색 중..."):
             try:
+                # 카테고리와 함께 검색 쿼리 구성
+                category_enhanced_query = f"{search_query} {selected_category}"
+                st.info(f"🔍 검색: '{category_enhanced_query}' (카테고리: {selected_category})")
+                
                 # scrapetube를 사용하여 YouTube 검색
-                videos = scrapetube.get_search(search_query, limit=20)
+                videos = scrapetube.get_search(category_enhanced_query, limit=20)
                 results = []
                 
                 for video in videos:
@@ -161,7 +188,9 @@ with tab1:
                             'duration': video.get('lengthText', {}).get('simpleText', 'N/A'),
                             'viewCount': {
                                 'short': video.get('shortViewCountText', {}).get('simpleText', 'N/A')
-                            }
+                            },
+                            'category': selected_category,
+                            'search_query': search_query
                         }
                         results.append(video_data)
                 
@@ -192,6 +221,10 @@ with tab1:
                     st.caption(f"👤 {video.get('channel', {}).get('name', 'Unknown')}")
                     st.caption(f"⏱️ {video.get('duration', 'N/A')} | 👁️ {video.get('viewCount', {}).get('short', 'N/A')}")
                     
+                    # 카테고리 정보 표시
+                    if video.get('category'):
+                        st.caption(f"🏷️ 카테고리: {video['category']}")
+                    
                     # URL 표시
                     video_url = video['link']
                     st.text(f"URL: {video_url}")
@@ -199,12 +232,12 @@ with tab1:
                     # 버튼들 (재생, 선택)
                     btn_col1, btn_col2 = st.columns(2)
                     with btn_col1:
-                        if st.button(f"▶️ 재생", key=f"play_{idx}", type="primary"):
+                        if st.button(f"▶️ 재생", key=f"search_play_{idx}", type="primary"):
                             # Set as current video to play in the app
                             set_current_video(video_url, video['title'], st.session_state)
                             st.rerun()
                     with btn_col2:
-                        if st.button(f"➕ 스케줄 추가", key=f"select_{idx}", type="secondary"):
+                        if st.button(f"➕ 스케줄 추가", key=f"search_select_{idx}", type="secondary"):
                             st.session_state.selected_video = video
                 
                 # 선택된 비디오에 대한 스케줄 추가 폼
@@ -217,19 +250,19 @@ with tab1:
                             schedule_title = st.text_input(
                                 "스케줄 제목", 
                                 value=video['title'][:50],
-                                key=f"schedule_title_{idx}"
+                                key=f"search_schedule_title_{idx}"
                             )
                         with schedule_col2:
                             schedule_time_input = st.text_input(
                                 "재생 시간 (서울 시간)", 
                                 value="12:00",
                                 help="24시간 형식 서울 시간으로 입력",
-                                key=f"schedule_time_{idx}"
+                                key=f"search_schedule_time_{idx}"
                             )
                         
                         button_col1, button_col2 = st.columns(2)
                         with button_col1:
-                            if st.button("✅ 스케줄 추가", key=f"add_schedule_{idx}", type="primary", width='stretch'):
+                            if st.button("✅ 스케줄 추가", key=f"search_add_schedule_{idx}", type="primary", width='stretch'):
                                 if schedule_title and schedule_time_input:
                                     # Convert local time to UTC
                                     #utc_time = local_to_utc(schedule_time_input, st.session_state.timezone_offset)
@@ -243,7 +276,7 @@ with tab1:
                                     st.error("⚠️ 제목과 시간을 모두 입력해주세요.")
                         
                         with button_col2:
-                            if st.button("❌ 취소", key=f"cancel_schedule_{idx}", width='stretch'):
+                            if st.button("❌ 취소", key=f"search_cancel_schedule_{idx}", width='stretch'):
                                 st.session_state.selected_video = None
                                 st.rerun()
                 
@@ -345,7 +378,7 @@ with tab3:
                 
                 # 일반 표시 모드
                 else:
-                    col1, col2, col3, col4, col5, col6 = st.columns([3, 2, 2, 1, 1, 1])
+                    col1, col2, col3, col4, col5, col6, col7 = st.columns([3, 2, 2, 1, 1, 1, 1])
                     
                     with col1:
                         status = "🟢" if row['is_active'] else "🔴"
@@ -365,11 +398,22 @@ with tab3:
                             st.rerun()
                     
                     with col5:
+                        if st.button("▶️", key=f"schedule_play_{row['id']}", help="지금 재생"):
+                            # 즉시 재생
+                            if row['file_type'] == 'youtube':
+                                from database.schedule_db import get_youtube_embed_url
+                                embed_url = get_youtube_embed_url(row['file_path'])
+                                set_current_video(embed_url, row['title'], st.session_state)
+                            else:
+                                set_current_video(row['file_path'], row['title'], st.session_state)
+                            st.rerun()
+                    
+                    with col6:
                         if st.button("✏️", key=f"edit_{row['id']}"):
                             st.session_state.editing_id = row['id']
                             st.rerun()
                     
-                    with col6:
+                    with col7:
                         if st.button("🗑️", key=f"delete_{row['id']}"):
                             delete_schedule(row['id'])
                             st.rerun()

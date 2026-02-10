@@ -1,12 +1,12 @@
+# databse/schedule_db.py
 import sqlite3
 import pandas as pd
 from datetime import datetime, time
-import threading
 import time as time_module
 import os
 import json
-import webbrowser
 import re
+import webbrowser
 
 # 데이터베이스 초기화
 def init_db():
@@ -84,8 +84,8 @@ def toggle_schedule(schedule_id, is_active):
 def is_youtube_url(url):
     youtube_regex = (
         r'(https?://)?(www\.)?'
-        '(youtube|youtu|youtube-nocookie)\.(com|be)/'
-        '(watch\?v=|embed/|v/|.+\?v=)?([^&=%\?]{11})')
+        r'(youtube|youtu|youtube-nocookie)\.(com|be)/'
+        r'(watch\?v=|embed/|v/|.+\?v=)?([^&=%\?]{11})')
     return re.match(youtube_regex, url) is not None
 
 # YouTube URL을 embed URL로 변환
@@ -162,9 +162,65 @@ def clear_current_video(session_state=None):
     except:
         pass
 
-    
+# Check schedule once (synchronous - called from main app)
+def check_schedule_once(session_state=None):
+    """Check if any scheduled videos should play right now (non-blocking)"""
+    try:
+        current_time = datetime.now().strftime("%H:%M")
+        conn = sqlite3.connect('schedule.db')
+        c = conn.cursor()
+        
+        # Debug logging
+        print(f"[DEBUG] Checking schedules at {current_time}")
+        
+        # Find active schedules matching current time
+        c.execute('''
+            SELECT * FROM schedules 
+            WHERE schedule_time = ? AND is_active = 1
+        ''', (current_time,))
+        
+        schedules = c.fetchall()
+        print(f"[DEBUG] Found {len(schedules)} matching schedules")
+        
+        for schedule in schedules:
+            schedule_id, _, file_path, file_type, title, _, _, last_played = schedule
+            print(f"[DEBUG] Processing schedule: {title}, last_played={last_played}")
+            
+            # Check if not already played this minute
+            if last_played != current_time:
+                print(f"[DEBUG] Playing video: {title}")
+                # Play the video
+                if file_type == 'youtube':
+                    embed_url = get_youtube_embed_url(file_path)
+                    print(f"[DEBUG] Setting video in session_state: {embed_url}")
+                    set_current_video(embed_url, title, session_state)
+                elif file_type == 'local':
+                    # For local files, still try to open (works only locally)
+                    if os.path.exists(file_path):
+                        if os.name == 'nt':
+                            os.startfile(file_path)
+                        else:
+                            os.system(f'open "{file_path}"')
+                elif file_type == "html":
+                    set_current_video(f'file://{os.path.abspath(file_path)}', title, session_state)
+                
+                # Update database with play time
+                c.execute('UPDATE schedules SET last_played = ? WHERE id = ?', (current_time, schedule_id))
+                conn.commit()
+                print(f"[DEBUG] Updated last_played to {current_time}")
+            else:
+                print(f"[DEBUG] Already played at {last_played}, skipping")
+        
+        conn.close()
+        return True
+        
+    except Exception as e:
+        print(f"Schedule check error: {e}")
+        import traceback
+        traceback.print_exc()
+        return False
 
-# 비디오 재생 체크 (백그라운드)
+# Background scheduler (legacy - kept for compatibility)
 def check_schedule():
     while True:
         try:
@@ -187,12 +243,13 @@ def check_schedule():
                 if last_played != current_time:
                     # 재생 처리
                     if file_type == 'youtube':
-                        webbrowser.open(file_path)
+                        embed_url = get_youtube_embed_url(file_path)
+                        set_current_video(embed_url, title, session_state)
                     elif file_type == 'local':
                         if os.path.exists(file_path):
                             os.startfile(file_path) if os.name == 'nt' else os.system(f'open "{file_path}"')
                     elif file_type == "html":
-                        webbrowser.open(f'file://{os.path.abspath(file_path)}')
+                        set_current_video(f'file://{os.path.abspath(file_path)}', title, session_state)
                     
                     # 데이터베이스에 재생 시간 업데이트
                     c.execute('UPDATE schedules SET last_played = ? WHERE id = ?', (current_time, schedule_id))
