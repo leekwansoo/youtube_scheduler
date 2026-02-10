@@ -194,6 +194,11 @@ def check_schedule_once(session_state=None):
             schedule_id, _, file_path, file_type, title, category, _, _, last_played = schedule
             print(f"[DEBUG] Processing schedule: {title} (category: {category}), last_played={last_played}")
             
+            # Skip if last_played is 00:00
+            if last_played == "00:00":
+                print(f"[DEBUG] Skipping video {title} because last_played is 00:00")
+                continue
+            
             # Check if not already played this minute
             if last_played != current_time:
                 print(f"[DEBUG] Playing video: {title}")
@@ -246,6 +251,10 @@ def check_schedule():
             
             for schedule in schedules:
                 schedule_id, _, file_path, file_type, title, category, _, _, last_played = schedule
+                
+                # Skip if last_played is 00:00
+                if last_played == "00:00":
+                    continue
                 
                 # 같은 시간대에 이미 재생되었는지 확인 (last_played와 current_time 비교)
                 if last_played != current_time:

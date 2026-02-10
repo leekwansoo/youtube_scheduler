@@ -271,7 +271,7 @@ with tab1:
                         with schedule_col2:
                             schedule_time_input = st.text_input(
                                 "재생 시간 (서울 시간)", 
-                                value="12:00",
+                                value="00:00",
                                 help="24시간 형식 서울 시간으로 입력",
                                 key=f"search_schedule_time_{idx}"
                             )
@@ -320,7 +320,7 @@ with tab2:
     
     with col1:
         title = st.text_input("제목", placeholder="예: 아침 운동 영상", key="title_input")
-        schedule_time = st.text_input("재생 시간", value="12:00", help="HH:MM 형식으로 입력 (24시간제)", key="schedule_time_input")
+        schedule_time = st.text_input("재생 시간", value="00:00", help="HH:MM 형식으로 입력 (24시간제)", key="schedule_time_input")
         
     with col2:
         file_type = st.radio("파일 유형", ["YouTube URL", "로컬 파일", "html"], horizontal=True)
