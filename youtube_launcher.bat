@@ -1,0 +1,2 @@
+@echo off
+"C:\Program Files\Google\Chrome\Application\chrome_proxy.exe" --profile-directory="Default" --ignore-profile-directory-if-not-exists https://youtubepalyer-5ytbbeqqwzsatlgrine6mv.streamlit.app/

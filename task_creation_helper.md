@@ -190,3 +190,45 @@ Simply edit `start_scheduler.bat` to change the application behavior without rec
 
 ## Summary
 This process demonstrates the importance of using appropriate tools for the task. While `schtasks` is powerful, PowerShell's `Register-ScheduledTask` provides better reliability for complex scenarios. The batch file approach abstracts the complexity and makes the solution more maintainable.
+
+## Create a task scheduler for .exe file with schtasks
+
+### Problem with .lnk Shortcuts
+**Issue**: Using `.lnk` shortcut files directly in scheduled tasks doesn't work:
+```cmd
+schtasks /create /tn "MyTask" /tr "C:\Users\SCLuser\Desktop\Vocabulary Builder.lnk\to\task.exe" /sc daily /st 09:30
+```
+**Error**: `.lnk` files are shortcuts, not executable paths.
+
+### Solution: Extract Target from Shortcut
+
+#### Step 1: Find the Real Executable
+```powershell
+$shell = New-Object -ComObject WScript.Shell
+$shortcut = $shell.CreateShortcut("C:\Users\SCLuser\Desktop\Vocabulary Builder.lnk")
+Write-Output "Target: $($shortcut.TargetPath)"
+Write-Output "Arguments: $($shortcut.Arguments)"
+```
+
+#### Step 2: Create Batch File (Recommended)
+Create `vocabulary_launcher.bat`:
+```batch
+@echo off
+"C:\Program Files\Google\Chrome\Application\chrome_proxy.exe" --profile-directory="Default" --ignore-profile-directory-if-not-exists https://vocabulary-new-huvxe5m7bxbyi7peb9yxhf.streamlit.app/
+```
+
+#### Step 3: Create Scheduled Task
+```cmd
+schtasks /create /tn "VocabularyBuilder" /tr "C:\Users\SCLuser\Desktop\vocabulary_launcher.bat" /sc daily /st 10:00
+```
+
+#### Step 4: Test the Task
+```cmd
+schtasks /run /tn "VocabularyBuilder"
+```
+
+### Key Points for .lnk Shortcuts:
+- **Never use .lnk files directly** in scheduled tasks
+- **Extract the target path** using PowerShell
+- **Use batch files** for complex commands with arguments
+- **Test manually first** before scheduling
