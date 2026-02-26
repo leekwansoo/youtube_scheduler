@@ -66,7 +66,9 @@ st.title("🎬 비디오 스케줄러")
 
 # 현재 재생 중인 비디오 표시
 try:
+    print(st.session_state)
     current_video = get_current_video(st.session_state)
+    # print(f"현재 재생 중인 비디오 정보: {current_video}")  # 디버깅용 로그
 except Exception as e:
     st.error(f"비디오 정보를 불러오는 중 오류가 발생했습니다: {e}")
     current_video = None
